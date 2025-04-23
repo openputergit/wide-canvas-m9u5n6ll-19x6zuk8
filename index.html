@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkinSense - AI Skin Disease Detection</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Poppins', sans-serif; }
+        .loader {
+            border-top-color: #3498db;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body x-data="{
+    currentPage: 'login',
+    isLoggedIn: false,
+    isLoading: false,
+    user: null,
+    uploadedImage: null,
+    result: null,
+    history: [],
+    loginForm: {
+        email: '',
+        password: ''
+    },
+    signupForm: {
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    },
+    async login() {
+        this.isLoading = true;
+        try {
+            const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer lvQd53CTKyZ0hO7pUtwgeUlUGZl1',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    appSlug: 'skinsense-123456',
+                    action: 'read',
+                    collection: 'users',
+                    conditions: { email: this.loginForm.email, password: this.loginForm.password }
+                })
+            });
+            const data = await response.json();
+            if (data.result.length > 0) {
+                this.user = data.result[0];
+                this.isLoggedIn = true;
+                this.currentPage = 'upload';
+                this.loadHistory();
+            } else {
+                alert('Invalid credentials');
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+        } finally {
+            this.isLoading = false;
+        }
+    },
+    async signup() {
+        if (this.signupForm.password !== this.signupForm.confirmPassword) {
+            alert('Passwords do not match');
+            return;
+        }
+        this.isLoading = true;
+        try {
+            const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer lvQd53CTKyZ0hO7pUtwgeUlUGZl1',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    appSlug: 'skinsense-123456',
+                    action: 'create',
+                    collection: 'users',
+                    data: {
+                        name: this.signupForm.name,
+                        email: this.signupForm.email,
+                        password: this.signupForm.password
+                    }
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('Signup successful! Please login.');
+                this.currentPage = 'login';
+            }
+        } catch (error) {
+            console.error('Signup error:', error);
+        } finally {
+            this.isLoading = false;
+        }
+    },
+    async uploadImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        this.isLoading = true;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userId', this.user._id);
+        formData.append('appSlug', 'skinsense-123456');
+
+        try {
+            const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/storage/upload', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer lvQd53CTKyZ0hO7pUtwgeUlUGZl1'
+                },
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.uploadedImage = data.url;
+                this.analyzeImage(data.url);
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+        } finally {
+            this.isLoading = false;
+        }
+    },
+    async analyzeImage(imageUrl) {
+        // Simulate AI analysis (in real deployment, this would call your Python backend)
+        this.isLoading = true;
+        setTimeout(() => {
+            const mockResult = {
+                disease: 'Eczema',
+                confidence: '89%',
+                urgency: 'Medium',
+                recommendations: [
+                    'Apply prescribed topical corticosteroids',
+                    'Keep the affected area moisturized',
+                    'Avoid triggers like harsh soaps'
+                ]
+            };
+            this.result = mockResult;
+            this.saveToHistory(mockResult);
+            this.isLoading = false;
+            this.currentPage = 'result';
+        }, 2000);
+    },
+    async saveToHistory(result) {
+        try {
+            await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer lvQd53CTKyZ0hO7pUtwgeUlUGZl1',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    appSlug: 'skinsense-123456',
+                    action: 'create',
+                    collection: 'history',
+                    data: {
+                        userId: this.user._id,
+                        imageUrl: this.uploadedImage,
+                        result: result,
+                        timestamp: new Date().toISOString()
+                    }
+                })
+            });
+        } catch (error) {
+            console.error('Save history error:', error);
+        }
+    },
+    async loadHistory() {
+        this.isLoading = true;
+        try {
+            const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer lvQd53CTKyZ0hO7pUtwgeUlUGZl1',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    appSlug: 'skinsense-123456',
+                    action: 'read',
+                    collection: 'history',
+                    conditions: { userId: this.user._id }
+                })
+            });
+            const data = await response.json();
+            this.history = data.result;
+        } catch (error) {
+            console.error('Load history error:', error);
+        } finally {
+            this.isLoading = false;
+        }
+    }
+}"
+class="min-h-screen bg-gray-100">
+
+    <!-- Loading Overlay -->
+    <div x-show="isLoading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="loader h-12 w-12 border-4 border-gray-200 rounded-full"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav x-show="isLoggedIn" class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-blue-600">SkinSense</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button @click="currentPage = 'upload'" 
+                            :class="{'text-blue-600': currentPage === 'upload'}"
+                            class="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100">
+                        Upload
+                    </button>
+                    <button @click="currentPage = 'history'" 
+                            :class="{'text-blue-600': currentPage === 'history'}"
+                            class="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100">
+                        History
+                    </button>
+                    <button @click="isLoggedIn = false; currentPage = 'login'" 
+                            class="px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-gray-100">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Login Page -->
+        <div x-show="currentPage === 'login'" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Login</h2>
+            <form @submit.prevent="login">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
+                    <input type="email" x-model="loginForm.email" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
+                    <input type="password" x-model="loginForm.password" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                    Login
+                </button>
+                <p class="mt-4 text-center">
+                    Don't have an account? 
+                    <button type="button" @click="currentPage = 'signup'" class="text-blue-600 hover:underline">
+                        Sign up
+                    </button>
+                </p>
+            </form>
+        </div>
+
+        <!-- Signup Page -->
+        <div x-show="currentPage === 'signup'" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Sign Up</h2>
+            <form @submit.prevent="signup">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Name</label>
+                    <input type="text" x-model="signupForm.name" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
+                    <input type="email" x-model="signupForm.email" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
+                    <input type="password" x-model="signupForm.password" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Confirm Password</label>
+                    <input type="password" x-model="signupForm.confirmPassword" required
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                    Sign Up
+                </button>
+                <p class="mt-4 text-center">
+                    Already have an account? 
+                    <button type="button" @click="currentPage = 'login'" class="text-blue-600 hover:underline">
+                        Login
+                    </button>
+                </p>
+            </form>
+        </div>
+
+        <!-- Upload Page -->
+        <div x-show="currentPage === 'upload'" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Upload Image</h2>
+            <div class="mb-6">
+                <label class="block text-center w-full border-2 border-dashed border-gray-300 rounded-lg p-8 cursor-pointer hover:border-blue-500">
+                    <div class="text-gray-600">
+                        <i class="bi bi-cloud-upload text-4xl"></i>
+                        <p class="mt-2">Click to upload or drag and drop</p>
+                        <p class="text-sm text-gray-500">Supported formats: JPG, PNG</p>
+                    </div>
+                    <input type="file" class="hidden" @change="uploadImage" accept="image/*">
+                </label>
+            </div>
+        </div>
+
+        <!-- Result Page -->
+        <div x-show="currentPage === 'result'" class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Analysis Result</h2>
+            <div class="mb-6">
+                <img :src="uploadedImage" alt="Uploaded skin condition" class="w-full h-48 object-cover rounded-lg mb-4">
+                <div class="space-y-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-bold">Detected Condition:</h3>
+                        <p x-text="result?.disease" class="text-blue-600"></p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-bold">Confidence:</h3>
+                        <p x-text="result?.confidence" class="text-green-600"></p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-bold">Urgency Level:</h3>
+                        <p x-text="result?.urgency" class="text-orange-600"></p>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-bold">Recommendations:</h3>
+                        <ul class="list-disc list-inside text-gray-700">
+                            <template x-for="rec in result?.recommendations">
+                                <li x-text="rec"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <button @click="currentPage = 'upload'" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                Analyze Another Image
+            </button>
+        </div>
+
+        <!-- History Page -->
+        <div x-show="currentPage === 'history'" class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold mb-6 text-center">Analysis History</h2>
+            <div class="space-y-4">
+                <template x-for="(item, index) in history" :key="index">
+                    <div class="p-4 border rounded-lg">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <img :src="item.imageUrl" alt="Historical scan" class="w-full h-32 object-cover rounded-lg">
+                            <div class="md:col-span-2">
+                                <p class="font-bold" x-text="'Condition: ' + item.result.disease"></p>
+                                <p class="text-gray-600" x-text="'Confidence: ' + item.result.confidence"></p>
+                                <p class="text-gray-600" x-text="'Urgency: ' + item.result.urgency"></p>
+                                <p class="text-sm text-gray-500" x-text="new Date(item.timestamp).toLocaleString()"></p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
